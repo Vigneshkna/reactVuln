@@ -1,0 +1,107 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- master
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+       echo "----------NPM Installing PNPM------------"
+       npm install -g pnpm
+       pnpm install --fix-lockfile> output.txt
+       echo "----------Remove NodeModules------------"
+       rm -rf node_modules
+       ls -lrt
+       echo "----------NPM install------------"
+       npm install
+       ls -lrt
+       echo "----------PNPM Audit------------"
+       pnpm audit > output.txt
+       #  echo "----------NPM Audit------------"
+       #  npm audit 
+       ls -lrt
+       echo "----------Output------------"
+       cat output.txt | while IFS= read -r line; do
+        echo "##vso[task.logissue type=warning]${line}"
+       done
+  displayName: 'PNPM-Audit'
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      echo "----------NPM Installing cyclonedx/cdxgen------------"
+      npm install -g @cyclonedx/cdxgen
+      cdxgen -o > sbom.json
+      cat sbom.json
+      wget https://github.com/devops-kung-fu/bomber/releases/download/v0.4.4/bomber_0.4.4_linux_amd64.deb
+      sudo dpkg -i bomber_0.4.4_linux_amd64.deb
+      ls -lrt
+      echo "----------Bomber Scan Started with Snyk------------"
+      bomber scan --provider snyk --token $(SNYK_TOKEN) sbom.json --output json --debug | (! jq '.["packages"]' -e)
+      echo "----------Bomber Scan Ended with Snyk------------"
+  displayName: 'Bomber'
+
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      echo "----------Download Latest Snyk CLI-----------"
+              curl -Lo ./snyk "https://github.com/snyk/snyk/releases/download/v1.1060.0/snyk-linux"
+              chmod +x snyk
+              ls -lrt
+              echo "----------Authenticating Snyk-----------"
+              ./snyk auth $(SNYK_TOKEN)
+              echo "----------Snyk Scanning-----------"
+              ./snyk test --file=package.json > output.txt
+              #echo "----------Snyk Scanning sbom-----------"
+              #./snyk test --file=pnpm-lock.yaml
+              echo "----------Snyk Monitor------------"
+              ./snyk monitor --file=package.json
+              echo "----------Snyk Output------------"
+              cat output.txt | while IFS= read -r line; do
+                echo "##vso[task.logissue type=warning]${line}"
+              done
+  displayName: 'Workaround 1'
+
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+       echo "----------NPM Installing PNPM------------"
+       npm install -g pnpm
+       pnpm install --fix-lockfile
+       echo "----------Remove NodeModules ------------"
+       rm -rf node_modules
+       rm -f package-lock.json
+       ls -lrt
+       echo "----------NPM install------------"
+       npm install
+       ls -lrt
+       echo "----------PNPM Audit------------"
+       pnpm audit 
+       echo "----------Download Latest Snyk CLI-----------"
+              curl -Lo ./snyk "https://github.com/snyk/snyk/releases/download/v1.1060.0/snyk-linux"
+              chmod +x snyk
+              ls -lrt
+              echo "----------Authenticating Snyk-----------"
+              ./snyk auth $(SNYK_TOKEN)
+              echo "----------Snyk Scanning-----------"
+              ./snyk test --file=package.json
+              echo "----------Snyk Monitor------------"
+              ./snyk monitor --file=package.json
+  displayName: 'Workaround PNPM-Audit'
+- task: SnykSecurityScan@1
+  inputs:
+    serviceConnectionEndpoint: 'SNYK_TOKEN'
+    testType: 'app'
+    monitorWhen: 'always'
+    failOnIssues: false
+  displayName: 'Snykscan Check'
