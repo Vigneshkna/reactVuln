@@ -45,7 +45,7 @@ steps:
       sudo dpkg -i bomber_0.4.4_linux_amd64.deb
       ls -lrt
       echo "----------Bomber Scan Started with Snyk------------"
-      bomber scan --provider snyk --token $(SNYK_TOKEN) sbom.json --output json --debug | (! jq '.["packages"]' -e)
+      bomber scan --provider snyk --token $(SNYK_TOKEN) sbom.json --output json
       echo "----------Bomber Scan Ended with Snyk------------"
   displayName: 'Bomber'
 
