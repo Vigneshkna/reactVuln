@@ -46,15 +46,8 @@ steps:
        echo "----------Authenticating Snyk-----------"
        ./snyk auth $(SNYK_TOKEN)
        echo "----------Snyk Scanning-----------"
-       ./snyk test --file=package.json
+       ./snyk test --file=package.json 
        echo "----------Snyk Monitor------------"
        ./snyk monitor --file=package.json
   displayName: 'Workaround PNPM-Audit'
-- task: SnykSecurityScan@1
-  inputs:
-    serviceConnectionEndpoint: 'SNYK_TOKEN'
-    testType: 'app'
-    monitorWhen: 'always'
-    failOnIssues: false
-  displayName: 'Snykscan Check'
   
